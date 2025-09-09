@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import joblib
-
+from sklearn.model_selection import train_test_split
 import config
-from model_pipline import train_model
-from utils import plot_loss, predict_car_price
+from model_pipline import train_model, arrangeData
+from utils import predict_car_price, predict_model, plot_loss_XGBoost, model_score
 
 st.title("🚗 Car Price Prediction App")
 
@@ -17,17 +16,35 @@ if train_file:
     df = pd.read_csv(train_file)
     st.write("### Training Data Preview")
     st.dataframe(df.head())
+    df = arrangeData(df)
 
-    target_col = st.selectbox("Select Target Column", df.columns)
+    # 👉 Save to session state so other pages (EDA) can use it
+    st.session_state["train_data"] = df
+
+    train, test = train_test_split(df, test_size=0.2, random_state=42)
 
     if st.button("🚀 Train Model"):
-        history, model, scaler, features = train_model(df, target_col)
-        joblib.dump((model, scaler, features), config.MODEL_PATH)
+        evals_result = train_model(train)
         st.success(f"""✅ Model trained and saved to {config.MODEL_PATH}!""")
 
         st.write("### 📉 Training Loss Curve")
-        fig = plot_loss(history)
+        fig = plot_loss_XGBoost(evals_result)
         st.pyplot(fig)
+
+        score_test, score_train, MAPE_test, MAPE_train = model_score(train,test)
+        st.write("### evaluate model")
+        st.write(f"R2 score (test):{score_test}")
+        st.write(f"R2 score (train):{score_train}")
+        st.write(f"MAPE (test):{MAPE_test}")
+        st.write(f"MAPE (train):{MAPE_train}")
+
+        mae,mse,baseline_mse,rel_mse = predict_model(test)
+        st.write("### predict model")
+        st.write(f"RMSE: {mse:.2f}")
+        st.write(f"MAE : {mae:.2f}")
+        st.write(f"Baseline RMSE (predict mean): {baseline_mse:.2f}")
+        st.write(f"Relative RMSE: {rel_mse:.1f}%")
+
 
 # -----------------------------
 # Upload dataset for prediction
@@ -114,7 +131,7 @@ if submitted:
         }])
 
         prediction = predict_car_price(manual_df)
-        st.success(f"💰 Estimated Car Price: **{prediction[0]:,.2f} €**")
+        st.success(f"💰 Estimated Car Price: **{prediction:,.2f} $**")
 
     except Exception as e:
         st.error(f"Prediction error: {e}")

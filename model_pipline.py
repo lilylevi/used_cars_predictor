@@ -1,13 +1,14 @@
 
 import os
 import pandas as pd
-import tensorflow as tf
+import xgboost as xgb
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
+from datetime import datetime
+import numpy as np
 import config
 from utils import save_pipeline
 
@@ -20,17 +21,9 @@ def load_data(filepath: str) -> pd.DataFrame:
 # --------------------
 # 1. Define function that builds your model
 # --------------------
-def build_model():
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dense(16, activation='relu'),
-        tf.keras.layers.Dense(8, activation='relu'),
-        tf.keras.layers.Dense(1)   # regression output
-    ])
-    model.compile(optimizer="adam", loss="mse", metrics=["mae", "mse"])
-    return model
 
-
+def build_XGBoost_model():
+    return xgb.XGBRegressor(learning_rate=0.1, n_estimators=100, early_stopping_rounds=50, enable_categorical=True, eval_metric="rmse")
 
 
 def create_pipline(numerical_features, categorical_features):
@@ -50,51 +43,53 @@ def create_pipline(numerical_features, categorical_features):
         ])
     return preprocessor
 
+def arrangeData(data: pd.DataFrame) -> pd.DataFrame:
 
-def train_model(data_path: str):
-    """Load data from file and train model"""
-    data = load_data(data_path)
+    data.dropna(subset=['price'], inplace=True)
+    data.drop(columns=['index', 'dateCrawled', 'nrOfPictures', 'name', 'monthOfRegistration', 'postalCode',
+                            'notRepairedDamage'], inplace=True)
+    # Filter out Outlier prices
+    data = data[(data['price'] > 100) & (data['price'] < 200000)]
+
+    # Convert yearOfRegistration to vehicle age
+    current_year = datetime.today().year
+    data['vehicle_age'] = current_year - data['yearOfRegistration']
+    data.drop(columns=['yearOfRegistration'], inplace=True)
+
+    # Filter out unrealistic ages
+    data = data[(data['vehicle_age'] >= 0) & (data['vehicle_age'] <= 70)]
+    return data
+
+
+def train_model(data):
 
     X = data[config.FEATURES]
     y = data[config.TARGET]
 
     # 2. Split train/test
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, X_val, y_train, y_val = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
 
     num_features = X.select_dtypes(exclude=['object', 'category']).columns
     cat_features = X.select_dtypes(include=['object', 'category']).columns
 
-    model_DNN = build_model()
+    model = build_XGBoost_model()
 
     pre_processor = create_pipline(num_features, cat_features)
     X_train = pre_processor.fit_transform(X_train)
+    X_val = pre_processor.transform(X_val)
+
+    y_train = np.log1p(y_train)
+    y_val = np.log1p(y_val)
 
     # 4. Train the pipeline
-    model_DNN.fit(X_train, y_train, validation_split=0.2)
+    model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_val, y_val)], verbose=False)
 
     os.makedirs(os.path.dirname(config.MODEL_PATH), exist_ok=True)
-    save_pipeline(pre_processor,model_DNN)
+    save_pipeline(pre_processor,model)
     print(f"Candidate model trained and saved to {config.PIPELINE_PATH}")
-    return config.PIPELINE_PATH
-
-
-    # # 5. Predict on test data
-    # y_pred = pipeline.predict(X_test)
-    #
-    # # 6. Evaluate
-    # print("Classification Report:")
-    # print(classification_report(y_test, y_pred, target_names=data.target_names))
-    #
-    # # 7. Save the trained pipeline
-    # joblib.dump(pipeline, "used_car_price_prediction_model.joblib")
-    # print("✅ Pipeline saved to used_car_price_prediction_model.joblib")
-    #
-    # # 8. Example of loading and using the saved pipeline
-    # loaded_model = joblib.load("used_car_price_prediction_model.joblib")
-    # sample = X_test.iloc[:5]
-    # print("Sample predictions:", loaded_model.predict(sample))
+    return model.evals_result()
 
 
 
