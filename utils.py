@@ -70,7 +70,7 @@ def predict_car_price(car_details):
     prediction = model.predict(X_transformed)
 
     # Return scalar
-    return float(np.expm1(prediction[0]).round(2))
+    return np.round(np.expm1(prediction),2)
 
 
 def save_pipeline(preprocessor, model, filename=config.PIPELINE_PATH, model_path=config.MODEL_PATH):

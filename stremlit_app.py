@@ -10,6 +10,7 @@ st.title("🚗 Car Price Prediction App")
 # -----------------------------
 # Upload training dataset
 # -----------------------------
+st.subheader("Train Model")
 train_file = st.file_uploader("Upload training dataset (CSV)", type=["csv"], key="train")
 
 if train_file:
@@ -46,31 +47,6 @@ if train_file:
         st.write(f"Relative RMSE: {rel_mse:.1f}%")
 
 
-# -----------------------------
-# Upload dataset for prediction
-# -----------------------------
-st.write("---")
-st.subheader("🔮 Predict Car Prices from File")
-
-new_file = st.file_uploader("Upload dataset for prediction (CSV)", type=["csv"], key="predict")
-
-if new_file:
-    new_df = pd.read_csv(new_file)
-    st.write("### New Data Preview")
-    st.dataframe(new_df.head())
-
-    try:
-        predictions = predict_car_price(new_df)
-
-        new_df["Predicted_Price"] = predictions
-        st.write("### Predictions")
-        st.dataframe(new_df)
-
-        csv = new_df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download Predictions", csv, "predictions.csv", "text/csv")
-
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
 
 # -----------------------------
 # Manual input form
@@ -130,7 +106,7 @@ if submitted:
             "lastSeen": lastSeen
         }])
 
-        prediction = predict_car_price(manual_df)
+        prediction = float(predict_car_price(manual_df))
         st.success(f"💰 Estimated Car Price: **{prediction:,.2f} $**")
 
     except Exception as e:

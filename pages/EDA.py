@@ -53,11 +53,11 @@ with tab2:
         ax.set_title(f"Distribution of {selected_num}")
         st.pyplot(fig)
         st.write(f"""
-        {selected_num} Analysis: Mean {selected_num}: {df[selected_num].describe().mean()}
+        {selected_num} Analysis: Mean {selected_num}: {df[selected_num].describe()["mean"]:.2f}
 
-        Median {selected_num}: {df[selected_num].describe().median()}
+        Median {selected_num}: {df[selected_num].describe().median():.2f}
 
-        {selected_num} Range: {df[selected_num].describe().min()}  –  {df[selected_num].describe().max()}
+        {selected_num} Range: {df[selected_num].describe()["min"]}  –  {df[selected_num].describe()["max"]}
 
         75% of cars are {selected_num} below {df[selected_num].describe()['75%']}
 
